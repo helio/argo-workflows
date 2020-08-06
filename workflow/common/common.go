@@ -1,7 +1,6 @@
 package common
 
 import (
-	"path/filepath"
 	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -173,8 +172,4 @@ func UnstructuredHasCompletedLabel(obj interface{}) bool {
 		return wf.GetLabels()[LabelKeyCompleted] == "true"
 	}
 	return false
-}
-
-func GenerateMountPath(mountPath string) string {
-	return filepath.Join(ExecutorMainFilesystemDir, mountPath)
 }
