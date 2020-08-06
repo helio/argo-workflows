@@ -794,7 +794,7 @@ func (woc *wfOperationCtx) addInputArtifactsVolumes(pod *apiv1.Pod, tmpl *wfv1.T
 				tmplVolumeMounts = tmpl.Script.Container.VolumeMounts
 			}
 			for _, mnt := range tmplVolumeMounts {
-				mnt.MountPath = filepath.Join(common.ExecutorMainFilesystemDir, mnt.MountPath)
+				mnt.MountPath = common.GenerateMountPath(mnt.MountPath)
 				initCtr.VolumeMounts = append(initCtr.VolumeMounts, mnt)
 			}
 
@@ -874,7 +874,7 @@ func addOutputArtifactsVolumes(pod *apiv1.Pod, tmpl *wfv1.Template) {
 	waitCtr := &pod.Spec.Containers[waitCtrIndex]
 
 	for _, mnt := range mainCtr.VolumeMounts {
-		mnt.MountPath = filepath.Join(common.ExecutorMainFilesystemDir, mnt.MountPath)
+		mnt.MountPath = common.GenerateMountPath(mnt.MountPath)
 		// ReadOnly is needed to be false for overlapping volume mounts
 		mnt.ReadOnly = false
 		waitCtr.VolumeMounts = append(waitCtr.VolumeMounts, mnt)

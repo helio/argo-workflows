@@ -146,7 +146,7 @@ func TestScriptTemplateWithoutVolumeOptionalArtifact(t *testing.T) {
 	customVolumeMountForInit := apiv1.VolumeMount{
 		Name:             "my-mount",
 		ReadOnly:         false,
-		MountPath:        filepath.Join(common.ExecutorMainFilesystemDir, "/manifest"),
+		MountPath:        common.GenerateMountPath("/manifest"),
 		SubPath:          "",
 		MountPropagation: nil,
 		SubPathExpr:      "",

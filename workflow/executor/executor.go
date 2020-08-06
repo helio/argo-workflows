@@ -156,7 +156,7 @@ func (we *WorkflowExecutor) LoadArtifacts() error {
 			// as opposed to the `input-artifacts` volume that is an implementation detail
 			// unbeknownst to the user.
 			log.Infof("Specified artifact path %s overlaps with volume mount at %s. Extracting to volume mount", art.Path, mnt.MountPath)
-			artPath = path.Join(common.ExecutorMainFilesystemDir, art.Path)
+			artPath = common.GenerateMountPath(art.Path)
 		}
 
 		// The artifact is downloaded to a temporary location, after which we determine if
@@ -352,7 +352,7 @@ func (we *WorkflowExecutor) stageArchiveFile(mainCtrID string, art *wfv1.Artifac
 		// If we get here, we are uploading an artifact from a mirrored volume mount which the wait
 		// sidecar has direct access to. We can upload directly from the shared volume mount,
 		// instead of copying it from the container.
-		mountedArtPath := filepath.Join(common.ExecutorMainFilesystemDir, art.Path)
+		mountedArtPath := common.GenerateMountPath(art.Path)
 		log.Infof("Staging %s from mirrored volume mount %s", art.Path, mountedArtPath)
 		if strategy.None != nil {
 			fileName := filepath.Base(art.Path)
@@ -481,7 +481,7 @@ func (we *WorkflowExecutor) SaveParameters() error {
 			}
 		} else {
 			log.Infof("Copying %s from from volume mount", param.ValueFrom.Path)
-			mountedPath := filepath.Join(common.ExecutorMainFilesystemDir, param.ValueFrom.Path)
+			mountedPath := common.GenerateMountPath(param.ValueFrom.Path)
 			data, err := ioutil.ReadFile(mountedPath)
 			if err != nil {
 				// We have a default value to use instead of returning an error
