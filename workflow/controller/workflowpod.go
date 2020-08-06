@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"path"
-	"path/filepath"
 	"strconv"
 	"time"
 
