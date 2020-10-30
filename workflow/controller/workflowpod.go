@@ -912,7 +912,22 @@ func addOutputArtifactsVolumes(pod *apiv1.Pod, tmpl *wfv1.Template) {
 	mainCtr = &pod.Spec.Containers[mainCtrIndex]
 	waitCtr := &pod.Spec.Containers[waitCtrIndex]
 
+	getVolByName := func(name string) *apiv1.Volume {
+		for _, vol := range pod.Spec.Volumes {
+			if vol.Name == name {
+				return &vol
+			}
+		}
+		return nil
+	}
+
 	for _, mnt := range mainCtr.VolumeMounts {
+		vol := getVolByName(mnt.Name)
+		// ignore secrets
+		if vol != nil && vol.VolumeSource.Secret != nil {
+			continue
+		}
+
 		mnt.MountPath = filepath.Join(common.ExecutorMainFilesystemDir, mnt.MountPath)
 		// ReadOnly is needed to be false for overlapping volume mounts
 		mnt.ReadOnly = false
