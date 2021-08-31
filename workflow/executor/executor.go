@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -78,7 +79,10 @@ type WorkflowExecutor struct {
 	memoizedSecrets map[string][]byte
 	// list of errors that occurred during execution.
 	// the first of these is used as the overall message of the node
-	errors []error
+	errors      []error
+	annotations map[string]string
+
+	podPatchTickerTime time.Duration
 }
 
 type Initializer interface {
@@ -123,6 +127,8 @@ func NewExecutor(clientset kubernetes.Interface, restClient rest.Interface, podN
 		memoizedConfigMaps:  map[string]string{},
 		memoizedSecrets:     map[string][]byte{},
 		errors:              []error{},
+		annotations:         make(map[string]string),
+		podPatchTickerTime:  30 * time.Second,
 	}
 }
 
@@ -746,7 +752,19 @@ func (we *WorkflowExecutor) HasError() error {
 
 // AddAnnotation adds an annotation to the workflow pod
 func (we *WorkflowExecutor) AddAnnotation(ctx context.Context, key, value string) error {
-	return common.AddPodAnnotation(ctx, we.ClientSet, we.PodName, we.Namespace, key, value, ExecutorRetry)
+	we.annotations[key] = value
+	return we.patchPodAnnotations(ctx)
+}
+
+func (we *WorkflowExecutor) patchPodAnnotations(ctx context.Context) error {
+	if len(we.annotations) == 0 {
+		return nil
+	}
+	if err := common.AddPodAnnotations(ctx, we.ClientSet, we.PodName, we.Namespace, we.annotations, ExecutorRetry); err != nil {
+		return err
+	}
+	we.annotations = make(map[string]string)
+	return nil
 }
 
 // isTarball returns whether or not the file is a tarball
@@ -917,6 +935,7 @@ func chmod(artPath string, mode int32, recurse bool) error {
 // Upon completion, kills any sidecars after it finishes.
 func (we *WorkflowExecutor) Wait(ctx context.Context) error {
 	containerNames := we.Template.GetMainContainerNames()
+	go we.monitorProgress(ctx, containerNames, we.podPatchTickerTime)
 	annotationUpdatesCh := we.monitorAnnotations(ctx)
 	go we.monitorDeadline(ctx, containerNames, annotationUpdatesCh)
 	err := waitutil.Backoff(ExecutorRetry, func() (bool, error) {
@@ -928,6 +947,136 @@ func (we *WorkflowExecutor) Wait(ctx context.Context) error {
 	}
 	log.Infof("Main container completed")
 	return nil
+}
+
+var progressRegexp = regexp.MustCompile("#argo .*progress=([0-9]+/[0-9]+)")
+
+// monitorProgress watches for the line `#argo progress=N/M` and
+// update the progress annotation so that the controller is notified.
+func (we *WorkflowExecutor) monitorProgress(ctx context.Context, containerNames []string, podPatchTickerTime time.Duration) {
+	lineC := make(chan string)
+	pod, err := we.getPod(ctx)
+	if err != nil {
+		log.WithError(err).Errorf("cannot monitor progress: failed to get pod")
+		return
+	}
+	containersStatus := make(map[string]apiv1.ContainerStatus)
+	for _, cs := range pod.Status.ContainerStatuses {
+		containersStatus[cs.Name] = cs
+	}
+
+	ticker := time.NewTicker(podPatchTickerTime)
+	defer ticker.Stop()
+	done := make(chan bool)
+
+	for _, name := range containerNames {
+		// TODO(mw): this is relatively ugly. Not sure about a better way though
+		// container still creating - delay monitoring
+		log.WithField("state", containersStatus[name].State).Info("checking container state")
+		if containersStatus[name].State.Running == nil || containersStatus[name].State.Running.StartedAt.IsZero() {
+			log.Info("cannot monitor progress: container state not running. sleeping")
+			time.Sleep(10 * time.Second)
+			we.monitorProgress(ctx, containerNames, podPatchTickerTime)
+			return
+		}
+
+		go func(ctx context.Context, name string, lineC chan string) {
+			we.readOutputStream(ctx, name, lineC)
+			done <- true
+		}(ctx, name, lineC)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.WithError(ctx.Err()).Info("context done")
+			return
+		case <-done:
+			return
+		case <-ticker.C:
+			log.WithField("annotations", we.annotations).Infof("patching pod annotations")
+			err := we.patchPodAnnotations(ctx)
+			if err != nil {
+				log.WithError(err).Warn("failed to patch progress annotations")
+			}
+		case line := <-lineC:
+			v := progressRegexp.FindStringSubmatch(line)
+			if len(v) == 2 {
+				progress, ok := wfv1.ParseProgress(v[1])
+				if ok {
+					log.WithField("progress", progress).Info()
+					we.annotations[common.AnnotationKeyProgress] = string(progress)
+				} else {
+					log.WithField("v", v[1]).Info("unable to parse progress")
+				}
+			}
+		}
+	}
+}
+
+func (we *WorkflowExecutor) readOutputStream(ctx context.Context, containerName string, lineC chan string) {
+	reader, err := we.RuntimeExecutor.GetOutputStream(ctx, containerName, true)
+	if err != nil {
+		log.WithError(err).Errorf("cannot monitor progress: failed to get output stream of container %q", containerName)
+		return
+	}
+	defer func() { _ = reader.Close() }()
+
+	bufReader := bufio.NewReader(reader)
+	countDown := 10
+	n := 0
+
+	var reopen <-chan time.Time
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-reopen:
+			_ = reader.Close()
+			r, err := we.RuntimeExecutor.GetOutputStream(ctx, containerName, true)
+			if err != nil {
+				log.WithError(err).Errorf("cannot monitor progress: failed to get output stream of container %q", containerName)
+				return
+			}
+			reader = r
+			bufReader = bufio.NewReader(reader)
+			if _, err = bufReader.Discard(n); err != nil && err != io.EOF {
+				log.WithError(err).Error("cannot monitor progress: discarding already read bytes failed")
+				return
+			}
+			reopen = nil
+		default:
+			if reopen != nil {
+				// don't try reading more from stream until reopening the stream happened
+				continue
+			}
+			line, err := bufReader.ReadString('\n')
+			if err == io.EOF {
+				if line == "" {
+					reopen = time.After(1 * time.Second)
+					continue
+				}
+			} else if err != nil {
+				log.WithError(err).Error("failed to monitor progress: failed to read line")
+				return
+			}
+			n += len(line)
+			if countDown == 0 {
+				log.Info("`#argo` did not appear in the first 10 log lines, cancelling progress monitoring")
+				return
+			} else if countDown > 0 {
+				if strings.Contains(line, "#argo") {
+					log.Info("`#argo` appeared in the first 10 log lines, continuing progress monitoring")
+					countDown = -1
+				} else {
+					countDown--
+				}
+			}
+
+			lineC <- line
+		}
+	}
 }
 
 func watchFileChanges(ctx context.Context, pollInterval time.Duration, filePath string) <-chan struct{} {

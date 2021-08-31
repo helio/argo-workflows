@@ -264,6 +264,7 @@ func listPods(woc *wfOperationCtx) (*apiv1.PodList, error) {
 type with func(pod *apiv1.Pod)
 
 func withOutputs(v string) with { return withAnnotation(common.AnnotationKeyOutputs, v) }
+func withProgress(v string) with { return withAnnotation(common.AnnotationKeyProgress, v) }
 
 func withExitCode(v int32) with {
 	return func(pod *apiv1.Pod) {

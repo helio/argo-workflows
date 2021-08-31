@@ -20,6 +20,9 @@ GREP_LOGS             := ""
 IMAGE_NAMESPACE       ?= argoproj
 DEV_IMAGE             ?= $(shell [ `uname -s` = Darwin ] && echo true || echo false)
 
+# declares which cluster to import to in case it's not the default name
+K3D_CLUSTER_NAME      ?= k3s-default
+
 # The name of the namespace where Kubernetes resources/RBAC will be installed
 KUBE_NAMESPACE        ?= argo
 
@@ -225,7 +228,7 @@ argoexec-image:
 	docker buildx build -t $(IMAGE_NAMESPACE)/$*:$(VERSION) --target $* .
 	[ ! -e $* ] || mv $* dist/
 	docker run --rm -t $(IMAGE_NAMESPACE)/$*:$(VERSION) version
-	if [ $(K3D) = true ]; then k3d image import $(IMAGE_NAMESPACE)/$*:$(VERSION); fi
+	if [ $(K3D) = true ]; then k3d image import -c $(K3D_CLUSTER_NAME) $(IMAGE_NAMESPACE)/$*:$(VERSION); fi
 	if [ $(DOCKER_PUSH) = true ] && [ $(IMAGE_NAMESPACE) != argoproj ] ; then docker push $(IMAGE_NAMESPACE)/$*:$(VERSION) ; fi
 
 scan-images: scan-workflow-controller scan-argoexec scan-argocli

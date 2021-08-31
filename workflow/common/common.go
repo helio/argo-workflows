@@ -48,6 +48,14 @@ const (
 	// was scheduled to run by CronWorkflow.
 	AnnotationKeyCronWfScheduledTime = workflow.WorkflowFullName + "/scheduled-time"
 
+	// AnnotationKeyWorkflowName is the name of the workflow
+	AnnotationKeyWorkflowName = workflow.WorkflowFullName + "/workflow-name"
+	// AnnotationKeyWorkflowUID is the uid of the workflow
+	AnnotationKeyWorkflowUID = workflow.WorkflowFullName + "/workflow-uid"
+
+	// AnnotationKeyProgress is N/M progress for the node
+	AnnotationKeyProgress = workflow.WorkflowFullName + "/progress"
+
 	// LabelKeyControllerInstanceID is the label the controller will carry forward to workflows/pod labels
 	// for the purposes of workflow segregation
 	LabelKeyControllerInstanceID = workflow.WorkflowFullName + "/controller-instanceid"

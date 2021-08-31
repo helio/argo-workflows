@@ -67,7 +67,7 @@ type wfOperationCtx struct {
 	// updated indicates whether or not the workflow object itself was updated
 	// and needs to be persisted back to kubernetes
 	updated bool
-	// log is an logrus logging context to corralate logs with a workflow
+	// log is an logrus logging context to correlate logs with a workflow
 	log *log.Entry
 	// controller reference to workflow controller
 	controller *WorkflowController
@@ -515,6 +515,8 @@ func (woc *wfOperationCtx) setGlobalParameters(executionParameters wfv1.Argument
 // NOTE: a previous implementation used Patch instead of Update, but Patch does not work with
 // the fake CRD clientset which makes unit testing extremely difficult.
 func (woc *wfOperationCtx) persistUpdates(ctx context.Context) {
+	updateProgress := progress.UpdateProgress(woc.controller.podInformer, woc.wf, woc.log)
+	woc.updated = updateProgress || woc.updated
 	if !woc.updated {
 		return
 	}
@@ -522,7 +524,6 @@ func (woc *wfOperationCtx) persistUpdates(ctx context.Context) {
 	diff.LogChanges(woc.orig, woc.wf)
 
 	resource.UpdateResourceDurations(woc.wf)
-	progress.UpdateProgress(woc.wf)
 	// You MUST not call `persistUpdates` twice.
 	// * Fails the `reapplyUpdate` cannot work unless resource versions are different.
 	// * It will double the number of Kubernetes API requests.

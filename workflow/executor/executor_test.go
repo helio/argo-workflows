@@ -3,15 +3,20 @@ package executor
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/require"
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v3/workflow/common"
 	"github.com/argoproj/argo-workflows/v3/workflow/executor/mocks"
 )
 
@@ -373,4 +378,94 @@ func TestSaveArtifacts(t *testing.T) {
 	we.Template.Outputs.Artifacts[0].Optional = false
 	err = we.SaveArtifacts(ctx)
 	assert.Error(t, err)
+}
+
+func TestMonitorProgress(t *testing.T) {
+	deadline, ok := t.Deadline()
+	if !ok {
+		deadline = time.Now().Add(30 * time.Second)
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
+	fakeClientset := fake.NewSimpleClientset(&corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fakePodName,
+			Namespace: fakeNamespace,
+		},
+		Spec: corev1.PodSpec{},
+		Status: corev1.PodStatus{
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "main",
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{
+							StartedAt: metav1.Now(),
+						},
+					},
+				},
+			},
+		},
+	})
+
+	f, err := os.CreateTemp("", "")
+	require.NoError(t, err)
+	defer func() {
+		name := f.Name()
+		err := f.Close()
+		assert.NoError(t, err)
+		err = os.Remove(name)
+		assert.NoError(t, err)
+	}()
+	podPatchTickerTime := 5 * time.Second
+
+	mockRuntimeExecutor := mocks.ContainerRuntimeExecutor{}
+	mockRuntimeExecutor.On("GetOutputStream", ctx, "main", true).Return(func(context.Context, string, bool) io.ReadCloser {
+		f, err := os.Open(f.Name())
+		require.NoError(t, err)
+		return f
+	}, nil)
+	we := NewExecutor(fakeClientset, nil, fakePodName, fakeNamespace, &mockRuntimeExecutor, wfv1.Template{}, false, deadline)
+	containerNames := []string{"main"}
+	go we.monitorProgress(ctx, containerNames, podPatchTickerTime)
+
+	go func(ctx context.Context) {
+		progress := 0
+		maxProgress := 10
+		tickDuration := 1 * time.Second
+		ticker := time.After(tickDuration)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker:
+				t.Logf("tick progress=%d", progress)
+				_, err := fmt.Fprintln(f, fmt.Sprintf(`#argo progress=%d/100 message="my-message %d"`, progress*10, progress))
+				assert.NoError(t, err)
+				if progress >= maxProgress {
+					return
+				}
+				progress += 1
+				ticker = time.After(tickDuration)
+			}
+		}
+	}(ctx)
+
+	ticker := time.After(podPatchTickerTime)
+	for {
+		select {
+		case <-ctx.Done():
+			t.Error(ctx.Err())
+			return
+		case <-ticker:
+			pod, err := we.getPod(ctx)
+			assert.NoError(t, err)
+			progress, ok := pod.Annotations[common.AnnotationKeyProgress]
+			if ok && progress == "100/100" {
+				t.Log("success reaching 100/100 progress")
+				return
+			}
+			ticker = time.After(podPatchTickerTime)
+		}
+	}
 }

@@ -267,8 +267,8 @@ var defaultPatchBackoff = wait.Backoff{
 	Factor:   1,
 }
 
-// AddPodAnnotation adds an annotation to pod
-func AddPodAnnotation(ctx context.Context, c kubernetes.Interface, podName, namespace, key, value string, options ...interface{}) error {
+// AddPodAnnotations adds an annotation to pod
+func AddPodAnnotations(ctx context.Context, c kubernetes.Interface, podName, namespace string, annotations map[string]string, options ...interface{}) error {
 	backoff := defaultPatchBackoff
 	for _, option := range options {
 		switch v := option.(type) {
@@ -278,16 +278,14 @@ func AddPodAnnotation(ctx context.Context, c kubernetes.Interface, podName, name
 			panic("unknown option type")
 		}
 	}
-	return addPodMetadata(ctx, c, "annotations", podName, namespace, key, value, backoff)
+	return addPodMetadata(ctx, c, "annotations", podName, namespace, annotations, backoff)
 }
 
-// addPodMetadata is helper to either add a pod label or annotation to the pod
-func addPodMetadata(ctx context.Context, c kubernetes.Interface, field, podName, namespace, key, value string, backoff wait.Backoff) error {
+// addPodMetadata is helper to either add a number of pod labels or annotations to the pod
+func addPodMetadata(ctx context.Context, c kubernetes.Interface, field, podName, namespace string, data map[string]string, backoff wait.Backoff) error {
 	metadata := map[string]interface{}{
 		"metadata": map[string]interface{}{
-			field: map[string]string{
-				key: value,
-			},
+			field: data,
 		},
 	}
 	patch, err := json.Marshal(metadata)
