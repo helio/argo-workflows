@@ -6,13 +6,26 @@ metadata:
     argo-e2e: "true"
 spec:
   entrypoint: main
+#
+#  podMetadata:
+#    annotations:
+#      workflows.argoproj.io/progress: 0/100
+  retryStrategy:
+    retryPolicy: Always
+    limit: 2
+
   templates:
     - name: main
       dag:
         tasks:
           - name: progress
             template: progress
+          - name: progress2
+            template: progress2
     - name: progress
+      metadata:
+        annotations:
+          workflows.argoproj.io/progress: 0/100
       container:
 #        image: argoproj/argosay:v2
 #        args:
@@ -22,4 +35,18 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
           - |
-            for i in `seq 1 10`; do echo '#argo progress='"$(($i*10))"'/100 message="progress '"$i"'"'; sleep 10; done
+            for i in `seq 1 10`; do sleep 10; echo '#argo progress='"$(($i*10))"'/100 message="progress '"$i"'"'; done
+    - name: progress2
+      metadata:
+        annotations:
+          workflows.argoproj.io/progress: 0/50
+      container:
+        #        image: argoproj/argosay:v2
+        #        args:
+        #          - echo
+        #          - '#argo progress=50/100 message="my-message"'
+        image: alpine:3.14
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            for i in `seq 1 5`; do sleep 15; echo '#argo progress='"$(($i*10))"'/50 message="progress '"$i"'"'; done

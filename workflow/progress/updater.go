@@ -15,9 +15,13 @@ func UpdateProgress(podInformer cache.SharedIndexInformer, wf *wfv1.Workflow, lo
 		if node.Type != wfv1.NodeTypePod {
 			continue
 		}
-		progress := podProgress(podInformer, wf.Namespace, nodeID, "0/1", log)
+		currProgress := wfv1.Progress("0/1")
+		if wf.Status.Nodes[nodeID].Progress.IsValid() {
+			currProgress = wf.Status.Nodes[nodeID].Progress
+		}
+		progress := podProgress(podInformer, wf.Namespace, nodeID, currProgress, log)
 		if node.Fulfilled() {
-			progress = "1/1"
+			progress = progress.Complete()
 		}
 		if progress.IsValid() && node.Progress != progress {
 			log.WithField("progress", progress).Info("pod progress")
