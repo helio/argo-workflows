@@ -135,13 +135,12 @@ func (woc *wfOperationCtx) updateExecutionControl(ctx context.Context, podName s
 	}
 
 	woc.log.Infof("Updating execution control of %s: %s", podName, execCtlBytes)
-	err = common.AddPodAnnotation(
+	err = common.AddPodAnnotations(
 		ctx,
 		woc.controller.kubeclientset,
 		podName,
 		woc.wf.ObjectMeta.Namespace,
-		common.AnnotationKeyExecutionControl,
-		string(execCtlBytes),
+		map[string]string{common.AnnotationKeyExecutionControl: string(execCtlBytes)},
 	)
 	if err != nil {
 		return err
