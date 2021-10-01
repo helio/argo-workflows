@@ -83,6 +83,7 @@ type WorkflowExecutor struct {
 	annotations map[string]string
 
 	podPatchTickerTime time.Duration
+	progressPollDuration time.Duration
 }
 
 type Initializer interface {
@@ -129,6 +130,7 @@ func NewExecutor(clientset kubernetes.Interface, restClient rest.Interface, podN
 		errors:              []error{},
 		annotations:         make(map[string]string),
 		podPatchTickerTime:  30 * time.Second,
+		progressPollDuration: 3*time.Second,
 	}
 }
 
@@ -935,7 +937,7 @@ func chmod(artPath string, mode int32, recurse bool) error {
 // Upon completion, kills any sidecars after it finishes.
 func (we *WorkflowExecutor) Wait(ctx context.Context) error {
 	containerNames := we.Template.GetMainContainerNames()
-	go we.monitorProgress(ctx, containerNames, we.podPatchTickerTime)
+	go we.monitorProgress(ctx, containerNames, we.podPatchTickerTime, os.Getenv(common.EnvVarProgressFile), we.progressPollDuration)
 	annotationUpdatesCh := we.monitorAnnotations(ctx)
 	go we.monitorDeadline(ctx, containerNames, annotationUpdatesCh)
 	err := waitutil.Backoff(ExecutorRetry, func() (bool, error) {
@@ -953,7 +955,7 @@ var progressRegexp = regexp.MustCompile("#argo .*progress=([0-9]+/[0-9]+)")
 
 // monitorProgress watches for the line `#argo progress=N/M` and
 // update the progress annotation so that the controller is notified.
-func (we *WorkflowExecutor) monitorProgress(ctx context.Context, containerNames []string, podPatchTickerTime time.Duration) {
+func (we *WorkflowExecutor) monitorProgress(ctx context.Context, containerNames []string, podPatchTickerTime time.Duration, progressFile string, progressPollDuration time.Duration) {
 	lineC := make(chan string)
 	pod, err := we.getPod(ctx)
 	if err != nil {
@@ -976,12 +978,12 @@ func (we *WorkflowExecutor) monitorProgress(ctx context.Context, containerNames 
 		if containersStatus[name].State.Running == nil || containersStatus[name].State.Running.StartedAt.IsZero() {
 			log.Info("cannot monitor progress: container state not running. sleeping")
 			time.Sleep(10 * time.Second)
-			we.monitorProgress(ctx, containerNames, podPatchTickerTime)
+			we.monitorProgress(ctx, containerNames, podPatchTickerTime, progressFile, progressPollDuration)
 			return
 		}
 
 		go func(ctx context.Context, name string, lineC chan string) {
-			we.readOutputStream(ctx, name, lineC)
+			we.watchProgressFile(ctx, lineC, progressFile, progressPollDuration)
 			done <- true
 		}(ctx, name, lineC)
 	}
@@ -1014,67 +1016,29 @@ func (we *WorkflowExecutor) monitorProgress(ctx context.Context, containerNames 
 	}
 }
 
-func (we *WorkflowExecutor) readOutputStream(ctx context.Context, containerName string, lineC chan string) {
-	reader, err := we.RuntimeExecutor.GetOutputStream(ctx, containerName, true)
-	if err != nil {
-		log.WithError(err).Errorf("cannot monitor progress: failed to get output stream of container %q", containerName)
-		return
-	}
-	defer func() { _ = reader.Close() }()
-
-	bufReader := bufio.NewReader(reader)
-	countDown := 10
-	n := 0
-
-	var reopen <-chan time.Time
+func (we *WorkflowExecutor) watchProgressFile(ctx context.Context, lineC chan string, progressFile string, progressPollDuration time.Duration) {
+	pollTicker := time.NewTicker(progressPollDuration)
+	lastLine := ""
+	progressFile = filepath.Clean(progressFile)
 
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case <-reopen:
-			_ = reader.Close()
-			r, err := we.RuntimeExecutor.GetOutputStream(ctx, containerName, true)
+			log.WithError(ctx.Err()).Info("context done")
+		case <-pollTicker.C:
+			data, err := ioutil.ReadFile(progressFile)
 			if err != nil {
-				log.WithError(err).Errorf("cannot monitor progress: failed to get output stream of container %q", containerName)
-				return
-			}
-			reader = r
-			bufReader = bufio.NewReader(reader)
-			if _, err = bufReader.Discard(n); err != nil && err != io.EOF {
-				log.WithError(err).Error("cannot monitor progress: discarding already read bytes failed")
-				return
-			}
-			reopen = nil
-		default:
-			if reopen != nil {
-				// don't try reading more from stream until reopening the stream happened
+				log.WithError(err).WithField("file", progressFile).Info("unable to watch file")
 				continue
 			}
-			line, err := bufReader.ReadString('\n')
-			if err == io.EOF {
-				if line == "" {
-					reopen = time.After(1 * time.Second)
-					continue
-				}
-			} else if err != nil {
-				log.WithError(err).Error("failed to monitor progress: failed to read line")
-				return
-			}
-			n += len(line)
-			if countDown == 0 {
-				log.Info("`#argo` did not appear in the first 10 log lines, cancelling progress monitoring")
-				return
-			} else if countDown > 0 {
-				if strings.Contains(line, "#argo") {
-					log.Info("`#argo` appeared in the first 10 log lines, continuing progress monitoring")
-					countDown = -1
-				} else {
-					countDown--
-				}
-			}
+			lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+			mostRecent := strings.TrimSpace(lines[len(lines)-1])
 
-			lineC <- line
+			if mostRecent == "" || mostRecent == lastLine {
+				continue
+			}
+			lastLine = mostRecent
+			lineC <- lastLine
 		}
 	}
 }

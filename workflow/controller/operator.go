@@ -515,8 +515,13 @@ func (woc *wfOperationCtx) setGlobalParameters(executionParameters wfv1.Argument
 // NOTE: a previous implementation used Patch instead of Update, but Patch does not work with
 // the fake CRD clientset which makes unit testing extremely difficult.
 func (woc *wfOperationCtx) persistUpdates(ctx context.Context) {
-	updateProgress := progress.UpdateProgress(woc.controller.podInformer, woc.wf, woc.log)
-	woc.updated = updateProgress || woc.updated
+	if pods, err := woc.getAllWorkflowPods(); err != nil {
+		woc.log.Warnf("unable to retrieve workflow pods: %s", err)
+	} else {
+		updateProgress := progress.UpdateProgress(pods, woc.wf, woc.log)
+		woc.updated = updateProgress || woc.updated
+	}
+
 	if !woc.updated {
 		return
 	}

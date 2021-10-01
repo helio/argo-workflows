@@ -5,21 +5,19 @@ import (
 	"github.com/argoproj/argo-workflows/v3/workflow/common"
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
-func UpdateProgress(podInformer cache.SharedIndexInformer, wf *wfv1.Workflow, log *log.Entry) bool {
+func UpdateProgress(pods []*apiv1.Pod, wf *wfv1.Workflow, log *log.Entry) bool {
 	updated := false
 	wf.Status.Progress = "0/0"
-	for nodeID, node := range wf.Status.Nodes {
-		if node.Type != wfv1.NodeTypePod {
-			continue
-		}
+	for _, pod := range pods {
+		nodeID := pod.Name
+		node := wf.Status.Nodes[nodeID]
 		currProgress := wfv1.Progress("0/1")
 		if wf.Status.Nodes[nodeID].Progress.IsValid() {
 			currProgress = wf.Status.Nodes[nodeID].Progress
 		}
-		progress := podProgress(podInformer, wf.Namespace, nodeID, currProgress, log)
+		progress := podProgress(pod, currProgress, log)
 		if node.Fulfilled() {
 			progress = progress.Complete()
 		}
@@ -65,17 +63,13 @@ func sumProgress(wf *wfv1.Workflow, node wfv1.NodeStatus, visited map[string]boo
 	return progress
 }
 
-func podProgress(podInformer cache.SharedIndexInformer, namespace, name string, progress wfv1.Progress, log *log.Entry) wfv1.Progress {
+func podProgress(pod *apiv1.Pod, progress wfv1.Progress, log *log.Entry) wfv1.Progress {
 	// for pods, lets see what the annotation says pod can get deleted of course, so
 	// can be empty and return "", even it previously had a value
-	obj, _, _ := podInformer.GetStore().GetByKey(namespace + "/" + name)
-	if pod, ok := obj.(*apiv1.Pod); ok {
-		log.WithField("annotations", pod.Annotations).Info()
-		if annotation, ok := pod.Annotations[common.AnnotationKeyProgress]; ok {
-			v, ok := wfv1.ParseProgress(annotation)
-			if ok {
-				return v
-			}
+	if annotation, ok := pod.Annotations[common.AnnotationKeyProgress]; ok {
+		v, ok := wfv1.ParseProgress(annotation)
+		if ok {
+			return v
 		}
 	}
 	return progress

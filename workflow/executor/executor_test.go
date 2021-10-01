@@ -3,14 +3,13 @@ package executor
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"io"
 	"io/ioutil"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -418,16 +417,14 @@ func TestMonitorProgress(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 	podPatchTickerTime := 5 * time.Second
+	progressPollDuration := 1 * time.Second
+	progressFile := f.Name()
 
 	mockRuntimeExecutor := mocks.ContainerRuntimeExecutor{}
-	mockRuntimeExecutor.On("GetOutputStream", ctx, "main", true).Return(func(context.Context, string, bool) io.ReadCloser {
-		f, err := os.Open(f.Name())
-		require.NoError(t, err)
-		return f
-	}, nil)
-	we := NewExecutor(fakeClientset, nil, fakePodName, fakeNamespace, &mockRuntimeExecutor, wfv1.Template{}, false, deadline)
+	we := NewExecutor(fakeClientset, nil, fakePodName, fakeNamespace, "", &mockRuntimeExecutor, wfv1.Template{}, false)
 	containerNames := []string{"main"}
-	go we.monitorProgress(ctx, containerNames, podPatchTickerTime)
+
+	go we.monitorProgress(ctx, containerNames, podPatchTickerTime, progressFile, progressPollDuration)
 
 	go func(ctx context.Context) {
 		progress := 0

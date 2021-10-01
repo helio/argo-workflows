@@ -119,6 +119,8 @@ const (
 	EnvVarKubeletInsecure = "ARGO_KUBELET_INSECURE"
 	// EnvVarArgoTrace is used enable tracing statements in Argo components
 	EnvVarArgoTrace = "ARGO_TRACE"
+	// EnvVarProgressFile is the file watched for reporting progress
+	EnvVarProgressFile = "ARGO_PROGRESS_FILE"
 
 	// ContainerRuntimeExecutorDocker to use docker as container runtime executor
 	ContainerRuntimeExecutorDocker = "docker"

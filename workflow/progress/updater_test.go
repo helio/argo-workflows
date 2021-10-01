@@ -3,20 +3,19 @@ package progress
 import (
 	"testing"
 
-	testutil "github.com/argoproj/argo-workflows/v3/test/util"
-	"github.com/argoproj/argo-workflows/v3/workflow/common"
 	"github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/stretchr/testify/assert"
+	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v3/workflow/common"
 )
 
 func TestUpdater(t *testing.T) {
+	ns := "my-ns"
 	wf := &wfv1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "my-ns"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: ns},
 		Status: wfv1.WorkflowStatus{
 			Nodes: wfv1.Nodes{
 				"pod-1": wfv1.NodeStatus{Phase: wfv1.NodeSucceeded, Type: wfv1.NodeTypePod},
@@ -26,15 +25,30 @@ func TestUpdater(t *testing.T) {
 			},
 		},
 	}
-	podInformer := testutil.NewSharedIndexInformer()
-	podInformer.Indexer.SetByKey("my-ns/pod-3", &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				common.AnnotationKeyProgress: "50/100",
+	pods := []*apiv1.Pod{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      "pod-1",
 			},
 		},
-	})
-	UpdateProgress(podInformer, wf, logrus.NewEntry(logrus.New()))
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      "pod-2",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      "pod-3",
+				Annotations: map[string]string{
+					common.AnnotationKeyProgress: "50/100",
+				},
+			},
+		},
+	}
+	UpdateProgress(pods, wf, logrus.NewEntry(logrus.New()))
 	assert.Equal(t, wfv1.Progress("1/1"), wf.Status.Nodes["pod-1"].Progress)
 	assert.Equal(t, wfv1.Progress("0/1"), wf.Status.Nodes["pod-2"].Progress)
 	assert.Equal(t, wfv1.Progress("50/100"), wf.Status.Nodes["pod-3"].Progress)
