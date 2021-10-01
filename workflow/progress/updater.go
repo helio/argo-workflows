@@ -27,7 +27,6 @@ func UpdateProgress(pods []*apiv1.Pod, wf *wfv1.Workflow, log *log.Entry) bool {
 			wf.Status.Nodes[nodeID] = node
 			updated = true
 		}
-		wf.Status.Progress = wf.Status.Progress.Add(progress)
 	}
 	for nodeID, node := range wf.Status.Nodes {
 		if node.Type == wfv1.NodeTypePod {
@@ -39,7 +38,12 @@ func UpdateProgress(pods []*apiv1.Pod, wf *wfv1.Workflow, log *log.Entry) bool {
 			wf.Status.Nodes[nodeID] = node
 			updated = true
 		}
+		// use progress of main node as progress of workflow
+		if nodeID == wf.Name {
+			wf.Status.Progress = sumProgress(wf, wf.Status.Nodes[wf.Name], make(map[string]bool))
+		}
 	}
+
 	return updated
 }
 
