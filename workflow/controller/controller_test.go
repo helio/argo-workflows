@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	envutil "github.com/argoproj/argo-workflows/v3/util/env"
+
 	"github.com/argoproj/pkg/sync"
 	"github.com/stretchr/testify/assert"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -151,16 +153,18 @@ func newController(options ...interface{}) (context.CancelFunc, *WorkflowControl
 				S3Bucket: wfv1.S3Bucket{Endpoint: "my-endpoint", Bucket: "my-bucket"},
 			},
 		}),
-		kubeclientset:        kube,
-		dynamicInterface:     dynamicClient,
-		wfclientset:          wfclientset,
-		workflowKeyLock:      sync.NewKeyLock(),
-		wfArchive:            sqldb.NullWorkflowArchive,
-		hydrator:             hydratorfake.Noop,
-		estimatorFactory:     estimation.DummyEstimatorFactory,
-		eventRecorderManager: &testEventRecorderManager{eventRecorder: record.NewFakeRecorder(64)},
-		archiveLabelSelector: labels.Everything(),
-		cacheFactory:         controllercache.NewCacheFactory(kube, "default"),
+		kubeclientset:             kube,
+		dynamicInterface:          dynamicClient,
+		wfclientset:               wfclientset,
+		workflowKeyLock:           sync.NewKeyLock(),
+		wfArchive:                 sqldb.NullWorkflowArchive,
+		hydrator:                  hydratorfake.Noop,
+		estimatorFactory:          estimation.DummyEstimatorFactory,
+		eventRecorderManager:      &testEventRecorderManager{eventRecorder: record.NewFakeRecorder(64)},
+		archiveLabelSelector:      labels.Everything(),
+		cacheFactory:              controllercache.NewCacheFactory(kube, "default"),
+		progressPatchTickDuration: envutil.LookupEnvDurationOr(common.EnvVarProgressPatchTickDuration, 1*time.Minute),
+		progressFileTickDuration:  envutil.LookupEnvDurationOr(common.EnvVarProgressFileTickDuration, 3*time.Second),
 	}
 
 	for _, opt := range options {
@@ -261,7 +265,8 @@ func listPods(woc *wfOperationCtx) (*apiv1.PodList, error) {
 
 type with func(pod *apiv1.Pod)
 
-func withOutputs(v string) with { return withAnnotation(common.AnnotationKeyOutputs, v) }
+func withOutputs(v string) with  { return withAnnotation(common.AnnotationKeyOutputs, v) }
+func withProgress(v string) with { return withAnnotation(common.AnnotationKeyProgress, v) }
 
 func withExitCode(v int32) with {
 	return func(pod *apiv1.Pod) {
