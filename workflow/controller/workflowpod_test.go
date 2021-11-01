@@ -291,8 +291,8 @@ func TestWFLevelExecutorServiceAccountName(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, pods.Items, 1)
 	pod := pods.Items[0]
-	assert.Equal(t, "exec-sa-token", pod.Spec.Volumes[1].Name)
-	assert.Equal(t, "foo-token", pod.Spec.Volumes[1].VolumeSource.Secret.SecretName)
+	assert.Equal(t, "exec-sa-token", pod.Spec.Volumes[0].Name)
+	assert.Equal(t, "foo-token", pod.Spec.Volumes[0].VolumeSource.Secret.SecretName)
 
 	waitCtr := pod.Spec.Containers[0]
 	verifyServiceAccountTokenVolumeMount(t, waitCtr, "exec-sa-token", "/var/run/secrets/kubernetes.io/serviceaccount")
@@ -318,8 +318,8 @@ func TestTmplLevelExecutorServiceAccountName(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, pods.Items, 1)
 	pod := pods.Items[0]
-	assert.Equal(t, "exec-sa-token", pod.Spec.Volumes[1].Name)
-	assert.Equal(t, "tmpl-token", pod.Spec.Volumes[1].VolumeSource.Secret.SecretName)
+	assert.Equal(t, "exec-sa-token", pod.Spec.Volumes[0].Name)
+	assert.Equal(t, "tmpl-token", pod.Spec.Volumes[0].VolumeSource.Secret.SecretName)
 
 	waitCtr := pod.Spec.Containers[0]
 	verifyServiceAccountTokenVolumeMount(t, waitCtr, "exec-sa-token", "/var/run/secrets/kubernetes.io/serviceaccount")
@@ -1526,6 +1526,7 @@ spec:
 func TestHybridWfVolumesWindows(t *testing.T) {
 	wf := wfv1.MustUnmarshalWorkflow(helloWindowsWf)
 	woc := newWoc(*wf)
+	woc.controller.containerRuntimeExecutor = common.ContainerRuntimeExecutorDocker
 
 	ctx := context.Background()
 	mainCtr := woc.execWf.Spec.Templates[0].Container
@@ -1586,6 +1587,7 @@ func TestWindowsUNCPathsAreRemoved(t *testing.T) {
 func TestHybridWfVolumesLinux(t *testing.T) {
 	wf := wfv1.MustUnmarshalWorkflow(helloLinuxWf)
 	woc := newWoc(*wf)
+	woc.controller.containerRuntimeExecutor = common.ContainerRuntimeExecutorDocker
 
 	ctx := context.Background()
 	mainCtr := woc.execWf.Spec.Templates[0].Container
