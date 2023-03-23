@@ -205,7 +205,7 @@ jobs:
           login-server: quay.io
           username: ${{ secrets.QUAYIO_USERNAME }}
           password: ${{ secrets.QUAYIO_PASSWORD }}
-   
+
       - name: Build & Push Windows Docker Images
         env:
           DOCKERIO_ORG: ${{ secrets.DOCKERIO_ORG }}
@@ -224,6 +224,56 @@ jobs:
               --build-arg GIT_COMMIT=$tag \
               --build-arg GIT_BRANCH=$branch \
               --build-arg GIT_TREE_STATE=$tree_state \
+              --target $target \
+              -t $image_name \
+              -f Dockerfile.windows \
+              .
+          
+            docker push $image_name
+
+            docker tag $image_name quay.io/$image_name
+            docker push quay.io/$image_name
+
+          done
+
+  build-windows:
+    name: Build & push windows
+    if: github.repository == 'argoproj/argo-workflows'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v3
+      - name: Docker Login
+        uses: Azure/docker-login@v1
+        with:
+          username: ${{ secrets.DOCKERIO_USERNAME }}
+          password: ${{ secrets.DOCKERIO_PASSWORD }}
+
+      - name: Login to Quay
+        uses: Azure/docker-login@v1
+        with:
+          login-server: quay.io
+          username: ${{ secrets.QUAYIO_USERNAME }}
+          password: ${{ secrets.QUAYIO_PASSWORD }}
+
+      - name: Build & Push Windows Docker Images
+        env:
+          DOCKERIO_ORG: ${{ secrets.DOCKERIO_ORG }}
+        run: |
+          docker_org=$DOCKERIO_ORG
+
+          tag=$(basename $GITHUB_REF)
+          if [ $tag = "master" ]; then
+            tag="latest"
+          fi
+
+          targets="argoexec"
+          for target in $targets; do
+            image_name="${docker_org}/${target}:${tag}-windows-ltsc2022"
+            docker build \
+              --build-arg GIT_COMMIT=$tag \
+              --build-arg GIT_BRANCH=$branch \
+              --build-arg GIT_TREE_STATE=$tree_state \
+              --build-arg IMAGE_OS_VERSION=ltsc2022
               --target $target \
               -t $image_name \
               -f Dockerfile.windows \
@@ -281,8 +331,8 @@ jobs:
             image_name="${docker_org}/${target}:${tag}"
 
             if [ $target = "argoexec" ]; then
-              docker manifest create $image_name ${image_name}-linux-arm64 ${image_name}-linux-amd64 ${image_name}-windows
-              docker manifest create quay.io/$image_name quay.io/${image_name}-linux-arm64 quay.io/${image_name}-linux-amd64 quay.io/${image_name}-windows
+              docker manifest create $image_name ${image_name}-linux-arm64 ${image_name}-linux-amd64 ${image_name}-windows ${image_name}-windows-ltsc2022
+              docker manifest create quay.io/$image_name quay.io/${image_name}-linux-arm64 quay.io/${image_name}-linux-amd64 quay.io/${image_name}-windows quay.io/${image_name}-windows-ltsc2022
             else
               docker manifest create $image_name ${image_name}-linux-arm64 ${image_name}-linux-amd64
               docker manifest create quay.io/$image_name quay.io/${image_name}-linux-arm64 quay.io/${image_name}-linux-amd64
