@@ -1,10 +1,9 @@
 package os_specific
 
 import (
+	"fmt"
 	"os"
 	"syscall"
-
-	"github.com/argoproj/argo-workflows/v3/util/errors"
 )
 
 func CanIgnoreSignal(s os.Signal) bool {
@@ -29,7 +28,14 @@ func Setpgid(a *syscall.SysProcAttr) {
 func Wait(process *os.Process) error {
 	stat, err := process.Wait()
 	if stat.ExitCode() != 0 {
-		return errors.NewExitErr(stat.ExitCode())
+		var errStr string
+		if err != nil {
+			errStr = err.Error()
+		} else {
+			errStr = "<nil>"
+		}
+
+		return fmt.Errorf("exit with non-zero code. exit-code: %d, error:%s", stat.ExitCode(), errStr)
 	}
 	return err
 }
