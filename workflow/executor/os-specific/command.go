@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/term"
@@ -18,8 +17,8 @@ func simpleStart(cmd *exec.Cmd) (func(), error) {
 	}
 
 	closer := func() {
-		cmd.WaitDelay = 100 * time.Millisecond
-		_ = cmd.Wait()
+		//cmd.WaitDelay = 100 * time.Millisecond
+		//_ = cmd.Wait()
 	}
 
 	return closer, nil
