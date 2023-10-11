@@ -24,7 +24,10 @@ func simpleStart(cmd *exec.Cmd) (func(), error) {
 			return nil
 		}
 		cmd.WaitDelay = 100 * time.Millisecond
-		_ = cmd.Wait()
+		fmt.Println("Starting to wait")
+		if err := cmd.Wait(); err != nil {
+			fmt.Println("!!!!!!!!!!", err)
+		}
 	}
 
 	return closer, nil

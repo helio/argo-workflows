@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"syscall"
-
-	"github.com/argoproj/argo-workflows/v3/util/errors"
 )
 
 var (
@@ -13,6 +11,7 @@ var (
 )
 
 func CanIgnoreSignal(s os.Signal) bool {
+	fmt.Println("SIGNAL IGNORE WIN?", s)
 	return false
 }
 
@@ -32,11 +31,12 @@ func Setpgid(a *syscall.SysProcAttr) {
 }
 
 func Wait(process *os.Process) error {
-	fmt.Println("#### process wait")
-	stat, err := process.Wait()
-	fmt.Println(">>>>>>> end wait")
-	if stat.ExitCode() != 0 {
-		return errors.NewExitErr(stat.ExitCode())
-	}
-	return err
+	//fmt.Println("#### process wait")
+	//stat, err := process.Wait()
+	//fmt.Println(">>>>>>> end wait")
+	//if stat.ExitCode() != 0 {
+	//	return errors.NewExitErr(stat.ExitCode())
+	//}
+	//return err
+	return nil
 }

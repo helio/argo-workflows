@@ -166,6 +166,7 @@ func NewEmissaryCommand() *cobra.Command {
 							data, _ := ioutil.ReadFile(filepath.Clean(varRunArgo + "/ctr/" + containerName + "/signal"))
 							_ = os.Remove(varRunArgo + "/ctr/" + containerName + "/signal")
 							s, _ := strconv.Atoi(string(data))
+							fmt.Println("##### signal received", s, string(data))
 							if s > 0 {
 								_ = osspecific.Kill(pid, syscall.Signal(s))
 							}
@@ -250,6 +251,8 @@ func startCommand(ctx context.Context, name string, args []string, template *wfv
 		closer = func() {
 			_ = stdoutf.Close()
 			_ = combinedf.Close()
+			_ = os.Stderr.Close()
+			_ = os.Stdout.Close()
 		}
 	}
 
