@@ -1,6 +1,7 @@
 package os_specific
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 
@@ -31,7 +32,9 @@ func Setpgid(a *syscall.SysProcAttr) {
 }
 
 func Wait(process *os.Process) error {
+	fmt.Println("#### process wait")
 	stat, err := process.Wait()
+	fmt.Println(">>>>>>> end wait")
 	if stat.ExitCode() != 0 {
 		return errors.NewExitErr(stat.ExitCode())
 	}
