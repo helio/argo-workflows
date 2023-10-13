@@ -137,7 +137,7 @@ func NewEmissaryCommand() *cobra.Command {
 
 			cmdErr := retry.OnError(backoff, func(error) bool { return true }, func() error {
 
-				command, closer, err := startCommand(cmd.Context(), name, args, template)
+				command, closer, err := startCommand(name, args, template)
 				if err != nil {
 					return fmt.Errorf("failed to start command: %w", err)
 				}
@@ -226,8 +226,8 @@ func NewEmissaryCommand() *cobra.Command {
 	}
 }
 
-func startCommand(ctx context.Context, name string, args []string, template *wfv1.Template) (*exec.Cmd, func(), error) {
-	command := exec.CommandContext(ctx, name, args...)
+func startCommand(name string, args []string, template *wfv1.Template) (*exec.Cmd, func(), error) {
+	command := exec.Command(name, args...)
 	command.Env = os.Environ()
 
 	var closer func() = func() {}

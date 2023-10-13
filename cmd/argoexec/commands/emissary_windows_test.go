@@ -39,6 +39,15 @@ func TestEmissary(t *testing.T) {
 		assert.Equal(t, 13, err.(errors.Exited).ExitCode())
 		assert.EqualError(t, err, "exit status 13")
 	})
+
+	t.Run("Stdout", func(t *testing.T) {
+		_ = os.Remove(varRunArgo + "/ctr/main/stdout")
+		err := run("echo hello")
+		assert.NoError(t, err)
+		data, err := os.ReadFile(varRunArgo + "/ctr/main/stdout")
+		assert.NoError(t, err)
+		assert.Contains(t, string(data), "hello")
+	})
 }
 
 func run(script string) error {
