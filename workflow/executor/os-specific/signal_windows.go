@@ -2,7 +2,7 @@ package os_specific
 
 import (
 	"fmt"
-	"github.com/argoproj/argo-workflows/v3/util/errors"
+	argoerrors "github.com/argoproj/argo-workflows/v3/util/errors"
 	"os"
 	"syscall"
 )
@@ -32,11 +32,26 @@ func Setpgid(a *syscall.SysProcAttr) {
 }
 
 func Wait(process *os.Process) error {
-	fmt.Println("#### process wait")
-	stat, err := process.Wait()
-	fmt.Println(">>>>>>> end wait")
-	if stat.ExitCode() != 0 {
-		return errors.NewExitErr(stat.ExitCode())
+	handle, err := syscall.GetCurrentProcess()
+	if err != nil {
+		return err
 	}
-	return err
+	if err := process.Release(); err != nil {
+		return err
+	}
+	const STILL_ACTIVE = 259
+	for {
+		var ec uint32
+		err := syscall.GetExitCodeProcess(handle, &ec)
+		if err != nil {
+			return os.NewSyscallError("GetExitCodeProcess", err)
+		}
+		if ec == STILL_ACTIVE {
+			continue
+		}
+		if ec != 0 {
+			return argoerrors.NewExitErr(int(ec))
+		}
+		return nil
+	}
 }
