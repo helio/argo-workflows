@@ -101,18 +101,6 @@ jobs:
         os: [windows-2022, windows-2025]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-#      - name: Docker Login
-#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-#        with:
-#          username: ${{ secrets.DOCKERIO_USERNAME }}
-#          password: ${{ secrets.DOCKERIO_PASSWORD }}
-#
-#      - name: Login to Quay
-#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-#        with:
-#          registry: quay.io
-#          username: ${{ secrets.QUAYIO_USERNAME }}
-#          password: ${{ secrets.QUAYIO_PASSWORD }}
 
       - name: Build & Push Windows Docker Images
         env:
@@ -137,11 +125,6 @@ jobs:
               -f Dockerfile.windows \
               .
 
-#            docker push $image_name
-#
-#            docker tag $image_name quay.io/$image_name
-#            docker push quay.io/$image_name
-
           done
 
   push-images:
@@ -151,23 +134,6 @@ jobs:
     needs: [ build-linux, build-windows ]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-#      - name: Docker Login
-#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-#        with:
-#          username: ${{ secrets.DOCKERIO_USERNAME }}
-#          password: ${{ secrets.DOCKERIO_PASSWORD }}
-#
-#      - name: Login to Quay
-#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-#        with:
-#          registry: quay.io
-#          username: ${{ secrets.QUAYIO_USERNAME }}
-#          password: ${{ secrets.QUAYIO_PASSWORD }}
-#
-#      - name: Install cosign
-#        uses: sigstore/cosign-installer@e1523de7571e31dbe865fd2e80c5c7c23ae71eb4 # v3.4.0
-#        with:
-#          cosign-release: 'v2.2.3'
 
       - name: Push Multiarch Image
         env:
@@ -194,11 +160,6 @@ jobs:
               docker manifest create $image_name ${image_name}-linux-arm64 ${image_name}-linux-amd64
               docker manifest create quay.io/$image_name quay.io/${image_name}-linux-arm64 quay.io/${image_name}-linux-amd64
             fi
-
-#            docker manifest push $image_name
-#            docker manifest push quay.io/$image_name
-
-#            cosign sign -y --key env://COSIGN_PRIVATE_KEY quay.io/$image_name
 
           done
 
