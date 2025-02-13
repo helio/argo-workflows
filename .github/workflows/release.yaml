@@ -22,7 +22,7 @@ permissions:
 jobs:
   build-linux:
     name: Build & push linux
-    if: github.repository == 'argoproj/argo-workflows'
+    if: github.repository == 'helio/argo-workflows'
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -47,23 +47,23 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.platform }}-${{ matrix.target }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.platform }}-${{ matrix.target }}-buildx-
-
-      - name: Docker Login
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          username: ${{ secrets.DOCKERIO_USERNAME }}
-          password: ${{ secrets.DOCKERIO_PASSWORD }}
-
-      - name: Login to Quay
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAYIO_USERNAME }}
-          password: ${{ secrets.QUAYIO_PASSWORD }}
+#
+#      - name: Docker Login
+#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+#        with:
+#          username: ${{ secrets.DOCKERIO_USERNAME }}
+#          password: ${{ secrets.DOCKERIO_PASSWORD }}
+#
+#      - name: Login to Quay
+#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+#        with:
+#          registry: quay.io
+#          username: ${{ secrets.QUAYIO_USERNAME }}
+#          password: ${{ secrets.QUAYIO_PASSWORD }}
 
       - name: Docker Buildx
         env:
-          DOCKERIO_ORG: ${{ secrets.DOCKERIO_ORG }}
+          DOCKERIO_ORG: helio
           PLATFORM: ${{ matrix.platform }}
           TARGET: ${{ matrix.target }}
         run: |
@@ -82,7 +82,7 @@ jobs:
           docker buildx build \
             --cache-from "type=local,src=/tmp/.buildx-cache" \
             --cache-to "type=local,dest=/tmp/.buildx-cache" \
-            --output "type=image,push=true" \
+            --output "type=image" \
             --build-arg GIT_COMMIT=$GIT_COMMIT \
             --build-arg GIT_TAG=$GIT_TAG \
             --build-arg GIT_TREE_STATE=$GIT_TREE_STATE \
@@ -94,29 +94,29 @@ jobs:
 
   build-windows:
     name: Build & push windows
-    if: github.repository == 'argoproj/argo-workflows'
+    if: github.repository == 'helio/argo-workflows'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [windows-2022, windows-2025]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - name: Docker Login
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          username: ${{ secrets.DOCKERIO_USERNAME }}
-          password: ${{ secrets.DOCKERIO_PASSWORD }}
-
-      - name: Login to Quay
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAYIO_USERNAME }}
-          password: ${{ secrets.QUAYIO_PASSWORD }}
+#      - name: Docker Login
+#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+#        with:
+#          username: ${{ secrets.DOCKERIO_USERNAME }}
+#          password: ${{ secrets.DOCKERIO_PASSWORD }}
+#
+#      - name: Login to Quay
+#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+#        with:
+#          registry: quay.io
+#          username: ${{ secrets.QUAYIO_USERNAME }}
+#          password: ${{ secrets.QUAYIO_PASSWORD }}
 
       - name: Build & Push Windows Docker Images
         env:
-          DOCKERIO_ORG: ${{ secrets.DOCKERIO_ORG }}
+          DOCKERIO_ORG: helio
         run: |
           docker_org=$DOCKERIO_ORG
 
@@ -137,43 +137,41 @@ jobs:
               -f Dockerfile.windows \
               .
 
-            docker push $image_name
-
-            docker tag $image_name quay.io/$image_name
-            docker push quay.io/$image_name
+#            docker push $image_name
+#
+#            docker tag $image_name quay.io/$image_name
+#            docker push quay.io/$image_name
 
           done
 
   push-images:
     name: Push manifest with all images
-    if: github.repository == 'argoproj/argo-workflows'
+    if: github.repository == 'helio/argo-workflows'
     runs-on: ubuntu-24.04
     needs: [ build-linux, build-windows ]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - name: Docker Login
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          username: ${{ secrets.DOCKERIO_USERNAME }}
-          password: ${{ secrets.DOCKERIO_PASSWORD }}
-
-      - name: Login to Quay
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAYIO_USERNAME }}
-          password: ${{ secrets.QUAYIO_PASSWORD }}
-
-      - name: Install cosign
-        uses: sigstore/cosign-installer@e1523de7571e31dbe865fd2e80c5c7c23ae71eb4 # v3.4.0
-        with:
-          cosign-release: 'v2.2.3'
+#      - name: Docker Login
+#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+#        with:
+#          username: ${{ secrets.DOCKERIO_USERNAME }}
+#          password: ${{ secrets.DOCKERIO_PASSWORD }}
+#
+#      - name: Login to Quay
+#        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+#        with:
+#          registry: quay.io
+#          username: ${{ secrets.QUAYIO_USERNAME }}
+#          password: ${{ secrets.QUAYIO_PASSWORD }}
+#
+#      - name: Install cosign
+#        uses: sigstore/cosign-installer@e1523de7571e31dbe865fd2e80c5c7c23ae71eb4 # v3.4.0
+#        with:
+#          cosign-release: 'v2.2.3'
 
       - name: Push Multiarch Image
         env:
-          DOCKERIO_ORG: ${{ secrets.DOCKERIO_ORG }}
-          COSIGN_PRIVATE_KEY: ${{secrets.COSIGN_PRIVATE_KEY}}
-          COSIGN_PASSWORD: ${{secrets.COSIGN_PASSWORD}}
+          DOCKERIO_ORG: helio
         run: |
           : ${DOCKER_CONFIG:=~/.docker}
           echo $(jq -c '. + { "experimental": "enabled" }' ${DOCKER_CONFIG}/config.json) > ${DOCKER_CONFIG}/config.json
@@ -197,10 +195,10 @@ jobs:
               docker manifest create quay.io/$image_name quay.io/${image_name}-linux-arm64 quay.io/${image_name}-linux-amd64
             fi
 
-            docker manifest push $image_name
-            docker manifest push quay.io/$image_name
+#            docker manifest push $image_name
+#            docker manifest push quay.io/$image_name
 
-            cosign sign -y --key env://COSIGN_PRIVATE_KEY quay.io/$image_name
+#            cosign sign -y --key env://COSIGN_PRIVATE_KEY quay.io/$image_name
 
           done
 
