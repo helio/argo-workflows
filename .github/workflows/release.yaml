@@ -26,8 +26,8 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        platform: [ linux/amd64, linux/arm64 ]
-        target: [ workflow-controller, argocli, argoexec ]
+        platform: [ linux/amd64 ]
+        target: [ argoexec ]
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
@@ -95,10 +95,14 @@ jobs:
   build-windows:
     name: Build & push windows
     if: github.repository == 'helio/argo-workflows'
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os.name }}
     strategy:
       matrix:
-        os: [windows-2022, windows-2025]
+        os:
+          - name: windows-2022
+            baseImage: ltsc2022-amd64
+          - name: windows-2025
+            baseImage: ltsc2025-amd64
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
@@ -115,11 +119,12 @@ jobs:
 
           targets="argoexec"
           for target in $targets; do
-            image_name="${docker_org}/${target}:${tag}-${{ matrix.os }}"
+            image_name="${docker_org}/${target}:${tag}-${{ matrix.os.name }}"
             docker build \
               --build-arg GIT_COMMIT=$tag \
               --build-arg GIT_BRANCH=$branch \
               --build-arg GIT_TREE_STATE=$tree_state \
+              --build-arg IMAGE_OS_VERSION=${{ matrix.os.baseImage }} \
               --target $target \
               -t $image_name \
               -f Dockerfile.windows \
@@ -129,7 +134,7 @@ jobs:
 
   push-images:
     name: Push manifest with all images
-    if: github.repository == 'helio/argo-workflows'
+    if: github.repository == 'argoproj/argo-workflows'
     runs-on: ubuntu-24.04
     needs: [ build-linux, build-windows ]
     steps:
